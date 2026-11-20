@@ -31,9 +31,23 @@ python -m promofinder run --input "path/to/show folder" --out outputs/my_show
 
 Quick trial on a few episodes: `--episodes 1-5`. With no key at all, `--provider offline` runs the whole pipeline with a deterministic stub. That checks the plumbing only and says nothing about quality.
 
-**Default models.** `gemini-3.5-flash-lite` proposes and judges. On a free key, each Flash model was capped at about 20 requests per day, and a 50-episode show needs about 55 proposer calls plus about 280 judge calls. With a paid key, set `llm.model: gemini-3.5-flash` (stronger proposer) and `judge.model: gemini-3.5-flash-lite`.
+**Default models.** `gemini-3.5-flash-lite` proposes and judges. On a free key, each Flash model was capped at about 20 requests per day. The final 50-episode run made 271 calls: about 75 to propose (including repairs and montages) and about 195 to judge. With a paid key, set `llm.model: gemini-3.5-flash` (stronger proposer) and `judge.model: gemini-3.5-flash-lite`. On 12 episodes, Flash broke no length rule in 23 proposals, while Flash-Lite broke one in 9 of 23.
 
 **Free-tier friendly.** Every model response is cached in `.cache/llm/`. A rerun is free and produces identical output. If the daily quota runs out mid-run, the tool stops cleanly (exit code 3), and running the same command later resumes where it stopped. `runtime.max_rpm` in `config.yaml` keeps you under the per-minute limit.
+
+## Reproducing the submitted runs
+
+Results and the evaluation are in [`docs/solution.pdf`](docs/solution.pdf). These are the commands behind them (`IN` = the show folder):
+
+```bash
+# Final version: AI + rule-suggested openings, all 50 episodes, with baselines and judge re-test
+python -m promofinder run --input "$IN" --out outputs/run_v2_hints --max-rpm 12
+# Ablation: the same without rule hints (v1)
+python -m promofinder run --input "$IN" --out outputs/run_v1_nohints --hook-hints 0 --max-rpm 12
+# Model swap: Flash proposer on 12 episodes, same Flash-Lite judge
+python -m promofinder run --input "$IN" --out outputs/compare_flash_proposer --model gemini-3.5-flash \
+    --judge-model gemini-3.5-flash-lite --hook-hints 0 --episodes 1-11,13 --no-montage --no-baselines --no-retest --max-rpm 12
+```
 
 ## What you get (`outputs/<run>/`)
 

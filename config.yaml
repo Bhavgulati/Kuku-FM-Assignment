@@ -9,8 +9,8 @@ llm:
   provider: gemini
   model: gemini-3.5-flash-lite   # Checked with `python -m promofinder models` on 2026-11-20.
                             # Free-tier reality for this key: each Flash model is capped at ~20 requests/day
-                            # (quota GenerateRequestsPerDayPerProjectPerModel-FreeTier); a full show needs ~55
-                            # proposer + ~280 judge calls, so the default is Flash-Lite for everything.
+                            # (quota GenerateRequestsPerDayPerProjectPerModel-FreeTier); the final 50-episode run
+                            # made ~75 proposer + ~195 judge calls, so the default is Flash-Lite for everything.
                             # With a paid key, set model: gemini-3.5-flash (or 3.8-flash) and keep judge on lite.
   api_key_env: GEMINI_API_KEY
   base_url: null            # e.g. https://api.groq.com/openai/v1 for openai_compat
