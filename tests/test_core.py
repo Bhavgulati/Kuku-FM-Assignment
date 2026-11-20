@@ -137,3 +137,7 @@ def test_hook_claim_check(show):
     assert hook_claim_check(p('"Hello again, Mara. We need to talk."'), E, 3.0) in ("later_in_clip", "outside_clip")
     assert hook_claim_check(p('"You will never see this shop again!"'), E, 3.0) == "not_in_script"
     assert hook_claim_check(p("a slap across the face"), E, 3.0) is None  # nothing quoted -> not checkable
+    # a quote that merges a one-word-ish line with the next line ("Who did?" + "The man you...")
+    assert hook_claim_check(p('"Who did? The man you just met is not who he says he is."'), E, 3.0) == "later_in_clip"
+    # whole words only: "an" must not match inside "and"
+    assert hook_claim_check(p('"Ten years an hour ago"'), E, 3.0) == "not_in_script"

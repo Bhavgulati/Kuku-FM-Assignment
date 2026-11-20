@@ -49,7 +49,8 @@ def hook_claim_check(promo: Promo, eps_by_num: dict[int, Episode], hook_s: float
     """Does the line the proposer QUOTES as its hook really play in the first seconds?
     Returns None when the hook has no quote (nothing to check), else one of:
     'ok' | 'later_in_clip' | 'outside_clip' | 'not_in_script'. Matching uses the first 3 words,
-    so quotes that merge two consecutive script lines still match."""
+    whole words only, on the running stream of spoken lines, so a quote that merges consecutive
+    script lines (even a one-word line such as "Dignity?") still matches."""
     quotes = re.findall(r'["“]([^"”]{8,})["”]', promo.hook or "")
     if not quotes:
         return None
@@ -58,15 +59,16 @@ def hook_claim_check(promo: Promo, eps_by_num: dict[int, Episode], hook_s: float
         return None
     items = view_items(promo, eps_by_num)
 
-    def said(its):
-        return any(key in " ".join(_words(it.block.text)) for it in its if it.block.is_dialogue)
+    def said(blocks) -> bool:
+        stream = " ".join(w for b in blocks if b.is_dialogue for w in _words(b.text))
+        return f" {key} " in f" {stream} "
 
-    if said(window(items, 0.0, hook_s)):
+    if said(it.block for it in window(items, 0.0, hook_s)):
         return "ok"
-    if said(items):
+    if said(it.block for it in items):
         return "later_in_clip"
     for s in promo.segments:
-        if any(b.is_dialogue and key in " ".join(_words(b.text)) for b in eps_by_num[s.episode].blocks):
+        if said(sorted(eps_by_num[s.episode].blocks, key=lambda b: (b.start, b.idx))):
             return "outside_clip"
     return "not_in_script"
 
