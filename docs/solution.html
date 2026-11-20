@@ -1,0 +1,127 @@
+<!doctype html><html><head><meta charset='utf-8'><title>Solution</title><style>
+@page { size: A4; margin: 11mm 12mm 11mm 12mm; }
+body { font-family: "Segoe UI", Calibri, Arial, sans-serif; font-size: 8.6pt; line-height: 1.32; color: #111; margin: 0; }
+h1 { font-size: 14pt; margin: 0 0 1pt; } h1 + p { color: #444; margin-top: 0; }
+h2 { font-size: 10pt; margin: 6pt 0 2pt; padding-bottom: 1pt; border-bottom: 1px solid #bbb; }
+h3 { font-size: 9pt; margin: 4pt 0 1pt; }
+p { margin: 2pt 0 3pt; } ul, ol { margin: 1pt 0 3pt; padding-left: 14pt; } li { margin: 0 0 1pt; }
+table { border-collapse: collapse; width: 100%; margin: 2pt 0 4pt; font-size: 7.8pt; }
+th, td { border: 1px solid #ccc; padding: 1.5pt 3pt; text-align: left; vertical-align: top; }
+th { background: #f0f0f0; } code { font-family: Consolas, monospace; font-size: 7.8pt; background: #f4f4f4; padding: 0 2px; }
+pre { font-size: 7.4pt; background: #f6f6f6; padding: 3pt 5pt; margin: 2pt 0 4pt; white-space: pre-wrap; }
+a { color: #0b57d0; text-decoration: none; }
+</style></head><body><h1>Promo Finder: finding promos in microdrama screenplays</h1>
+<p><strong>Problem 1 (Find the Promos)</strong> · Bhavishya Gulati · 20234049 · Electronics and Communication Engineering · Prototype: https://github.com/Bhavgulati/Kuku-FM-Assignment · Raw outputs: https://drive.google.com/drive/folders/1ygWtC8yZLoSYEPBGFS7OmEDp0X111woM · Video: [link]</p>
+<p><strong>In one line:</strong> a re-runnable command-line tool that reads a show's screenplay files and returns <em>ranked</em> 20–60s promos, both single clips and cross-episode montages. Each promo comes with exact segment timestamps, the hook, the cliffhanger and why it works. The tool then <strong>grades its own picks with a blind AI "cold viewer"</strong> that also grades naive baselines, so the claims below are measured rather than asserted.</p>
+<h2>Why Problem 1</h2>
+<p>I chose Problem 1 because its output can be checked, not just liked. A promo either has a hook in its first 3 seconds, ends unresolved and makes sense to a cold viewer, or it doesn't. Every pick is a set of timestamps an editor can jump to in seconds. The screenplays already give a start and end time for every line, so a whole 50-episode show (about 103 minutes) can be searched from text without watching it. A tool can do the first pass while the editor keeps the final call. It is also the problem where it is easiest to fool yourself, because almost any microdrama clip looks dramatic. So I wanted one where I could measure the AI against naive shortcuts (the episode's last 45 seconds, a random window, simple rules) and report where it loses</p>
+<h2>How it works: what is AI, what is code, where the human stays</h2>
+<ol>
+<li><strong>Parse (code).</strong> Each <code>.txt</code> file becomes a timeline of 3,727 timed blocks (camera, action, sound, dialogue). The parser tolerates format drift: Episode 6 writes its field names in upper case.</li>
+<li><strong>Propose (AI + rules).</strong> Per episode, the LLM reads the script and proposes up to 3 clips <strong>by block ID, never by timestamp</strong>. Code first lists the 6 most visceral moments it finds with simple text rules (strikes, screams, "!" lines, intense delivery tags) as suggested openings. The AI decides the story and where the cliffhanger cut goes.</li>
+<li><strong>Validate and snap (code).</strong> Block IDs are turned into timestamps, and cuts are snapped so they <strong>never split a line of dialogue</strong>. Code enforces 20–60s, at most 3 segments and segments of at least 3s. A broken proposal goes back to the model once with the exact error ("74.3s &gt; 60s"); if it is still broken, it is dropped and logged. Every output timestamp traces back to a script line.</li>
+<li><strong>Montages (AI).</strong> One call over a "series spine" (all dialogue and action lines) builds 2–3-segment promos across episodes, such as a setup in Ep 1 followed by its twist in Ep 3. Code validates them in the same way.</li>
+<li><strong>Blind judge (AI).</strong> A model that never sees the title, the loglines or the proposer's claims reads only what a viewer would see and hear.<ul>
+<li>It rates the <strong>first 3 seconds on their own</strong>, about 10 shuffled openings per call, with ours mixed in with the baselines.</li>
+<li>It writes what it understood, what confused it and what it is left asking, and scores the cliffhanger and stands-alone 1–5.</li>
+<li>A grader then checks its understanding against the true loglines.</li>
+<li><strong>Names that are never spoken in the clip are masked</strong> ("Character A"). The first test showed why: an unmasked label let the judge see through a disguise the clip itself keeps hidden.</li>
+</ul>
+</li>
+<li><strong>Rank (code).</strong> An equal-weight mean of hook, cliffhanger and stands-alone, minus a misunderstanding penalty, with overlap dedupe and a mild variety push. Ties go to the earlier episode.</li>
+<li><strong>Human in the loop.</strong> The editor opens <code>report.html</code> and reviews the top 15. Each card shows the timestamps, the script excerpt with the first 3 seconds highlighted, the blind viewer's reaction and any flags.</li>
+</ol>
+<p><strong>Swapping the model</strong> is one config line, or <code>--model</code> / <code>--provider</code> / <code>--base-url</code>. The tool includes adapters for Gemini and for any OpenAI-compatible endpoint, and the judge can be a different model from the proposer. Prompts are plain files. Every response is cached, so reruns are free and an interrupted run resumes.</p>
+<h2>Assumptions (where the brief is silent)</h2>
+<ul>
+<li>Script timestamps match the final video, since no video was provided. Whether a hook <em>lands visually</em> can't be verified from text, so camera-only openings are flagged.</li>
+<li>Promo length is the sum of its segments, 20–60s. Montages have at most 3 segments of at least 3s each, played in the listed order. A cut never splits a spoken line.</li>
+<li>Hook, cliffhanger and stands-alone count equally, because the brief gives no priority. Spoilers are allowed, since the show's title already gives away the twist. How deep the episode is (how far a new viewer must watch to reach the moment) is shown, not penalized.</li>
+<li>Audience: US, English-speaking, scrolling with no context. "Stands alone" means only what is shown or spoken counts.</li>
+</ul>
+<h2>How I know it's good, and where it isn't</h2>
+<p>No human labels were used. The same blind judge scores the tool and three baselines on 20 sampled episodes: <strong>B1</strong> the last ~45s of the episode (the strongest naive shortcut, since episodes end on cliffhangers), <strong>B2</strong> a random window, and <strong>B3</strong> rules only, with no AI.</p>
+<table>
+<thead>
+<tr>
+<th>Blind judge, 1–5</th>
+<th>Hook (3s)</th>
+<th>Cliffhanger</th>
+<th>Stands alone</th>
+<th>Combined</th>
+<th>Misread</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>v2: AI + rule hints</strong> (final, 79 clips)</td>
+<td><strong>3.14</strong></td>
+<td>3.81</td>
+<td>3.10</td>
+<td><strong>3.35</strong></td>
+<td>10%</td>
+</tr>
+<tr>
+<td>v1: AI only (98 clips)</td>
+<td>2.86</td>
+<td>3.80</td>
+<td>3.16</td>
+<td>3.27</td>
+<td>14%</td>
+</tr>
+<tr>
+<td>B1 episode ending</td>
+<td>2.40</td>
+<td>3.70</td>
+<td>3.25</td>
+<td>3.12</td>
+<td>5%</td>
+</tr>
+<tr>
+<td>B2 random window</td>
+<td>2.25</td>
+<td>3.40</td>
+<td>3.50</td>
+<td>3.05</td>
+<td>30%</td>
+</tr>
+<tr>
+<td>B3 rules only</td>
+<td>3.55</td>
+<td>3.65</td>
+<td>3.15</td>
+<td>3.45</td>
+<td>10%</td>
+</tr>
+</tbody>
+</table>
+<p>Baselines are from the final run. In the v1 run the same baselines scored within 0.05 on every column, which shows how much the mix of openings in a batch moves the scores. Misread = the grader found the viewer's understanding contradicts or only partly matches the logline.</p>
+<ul>
+<li><strong>v1 lost to simple rules on the hook.</strong> The AI-only proposer beat the naive baselines on hooks, but <strong>lost to the rules-only picker (3.55)</strong>. Reading the openings side by side shows why: the AI opens a beat <em>before</em> the shock. In Ep 24 it opens on <em>"You thought? A new maid…"</em> (judge: 2) and the riding-crop strike comes 10s later, while B3 opens on the strike (5).</li>
+<li><strong>So v2 makes the rules suggest openings and lets the AI build the story.</strong> Clips that open on a rule-flagged moment rose from 37% to 65%, and the mean hook rose from 2.86 to 3.14, still below rules-only. On its own that gain is not proof: the bootstrap 95% CI of the difference is −0.08 to +0.65. The per-episode test is clearer. On the 20 sampled episodes, v2's first pick beats the episode-ending baseline in <strong>14</strong> (v1: 9) and the rules-only pick in <strong>10</strong> (v1: 5), with 1 and 5 ties. That is suggestive but not proven at n = 20 (sign test p ≈ 0.06 against B1). Example: in E23 v1 opened 3s before <em>"Someone is poisoning her."</em> (hook 1), while v2 opens on that line (4).</li>
+<li><strong>A code check on the AI's own claims.</strong> The proposer quotes its hook line, and code checks that the line really plays in the first 3s. v1: 51 of 64 correct. 12 of the misses play later than claimed or outside the clip; in E10-P1 the claimed line is at 00:25.5, but the clip starts at 00:28.0. One quote (E13-P2) stitches three real shouts together in the wrong order. v2: 38 of 42. Flash proposer: 19 of 19. Every mismatch is flagged on the editor's card.</li>
+<li><strong>The judge is noisy on hooks.</strong> Re-judging the same 20 promos in different batches, in two runs: hooks 30–47% exact and 95–100% within ±1; cliffhanger 85–90% exact; stands-alone 55–70% exact. Rank differences below ~0.5 mean little. Cliffhanger scores barely separate the groups (3.4–3.8), because nearly every scripted moment is tense.</li>
+<li><strong>Where it picks badly.</strong><ul>
+<li>Quiet bonding episodes give weak hooks (E08 <em>"Boring dialogue about plants"</em>, judge 1; E17 still 1–2 in v2).</li>
+<li>The AI sometimes opens on scenery (E37 v1: wedding invitations, judge 1), or picks the weakest suggestion. In E24 the strike was suggested, but v2 opened on an earlier suggestion, a question (hook 1).</li>
+<li>Hand-checking the shortlist: E10-P1 (#9) promises <em>"what hidden horrors lie beneath his coat?"</em> but shows the scars inside the clip, so it really ends on a reaction.</li>
+<li>Montages need context (v2 hook 2.4, n = 5).</li>
+<li>42% of v1 proposals (39% in v2) failed validation on the first try. Most were fixed by the repair round, and 9 per run were dropped, almost all for length. The model is weak at timestamp arithmetic, which is exactly why code owns the timestamps.</li>
+</ul>
+</li>
+<li><strong>Model strength matters.</strong> On the same 12 episodes with the same Flash-Lite judge (no hints), a <strong>Flash</strong> proposer scored 3.41 combined vs Flash-Lite's 3.14 (hook 3.23 vs 2.71, cliffhanger 3.74 vs 3.48). Its viewers misread 1 of 23 clips vs 4 of 21, and <strong>none of its 23 proposals broke a rule</strong>, vs 9 of 23 for Flash-Lite. With n ≈ 22 and hook batches that differ between the runs, the clearest signal is the rule-following. With a paid key, use Flash as the proposer.</li>
+</ul>
+<h2>Scale and cost</h2>
+<ul>
+<li><strong>One show</strong> (50 episodes, 103 min): the final run makes 271 API calls, using 750k input and 47k output tokens (thinking included). It takes about 26 min from scratch on the free tier, with the tool throttled to 12 requests/min, and a cached re-run is free. Two-thirds of the calls are production: proposing, plus judging our own promos for the ranking. The rest is evaluation (baselines, re-test). Episodes are independent, so the work parallelises.</li>
+<li><strong>Paid cost (estimate):</strong> Gemini 3.5 Flash-Lite lists $0.30 per 1M input tokens and $2.50 per 1M output tokens (Google AI Studio pricing page, 20 Nov 2026). The measured tokens give <strong>≈ $0.34 per show including evaluation, or $0.27 without it</strong>. gemini-3.8-flash ($0.75 / $3.75, doubling after 31 Dec 2026) would cost about $0.75 at the same token counts. Ten shows a week costs about $3.50 on Flash-Lite. The editor's time drops from watching about 100 minutes to reviewing about 15 ranked cards.</li>
+<li><strong>Real limit = quota, not money.</strong> This free key allowed about 20 requests per day per Flash model and about 500 per day for Flash-Lite, so the stronger Flash proposer covered only 12 episodes. A paid key removes the limit. The cache makes any interruption resumable: the final run stopped at the daily cap and finished the next day, needing only 65 new calls.</li>
+<li><strong>Next steps (not built):</strong> log the editor's accept/reject decisions to tune the weights and add few-shot examples; feed real post-performance metrics (3s retention, click-through) back in as the ground truth the judge currently stands in for.</li>
+</ul>
+<h2>AI tools used, and where they got it wrong</h2>
+<p>I built this with <strong>Claude Code (Claude Opus 5.5)</strong> for planning, code and analysis. <strong>Gemini 3.5 Flash-Lite</strong> runs inside the tool. All the decisions in this doc are mine. Things the AI got wrong (full list in <code>docs/build_log.md</code>):</p>
+<ul>
+<li><strong>The "blind" judge wasn't blind.</strong> The plan let the judge see speaker labels, and the judge then asked <em>"Why is Juliana referred to as a maid in the dialogue, but as Lady Juliana in the stage directions?"</em> The label gave away a disguise the clip keeps hidden. Fixed by masking unspoken names.</li>
+<li><strong>The grader confused "not mentioned" with "wrong".</strong> It flagged 16% of promos as misunderstood, including a viewer summary that matched the logline, because the viewer named a character the one-line summary leaves out. The prompt was fixed and everything re-graded (v1: 16% → 14%).</li>
+<li><strong>Unverified numbers and checks.</strong> The plan said 106 scenes, because a grep also counted Ep 6's upper-case field lines. The real count is 100, caught by a parser test. The AI's own hook-quote check called 2 real v2 quotes "invented", because it could not match a quote that merges a one-word line like <em>"Dignity?"</em>. Hand-checking caught it. The AI also used up the scarce daily quota on probes before measuring it.</li>
+</ul></body></html>

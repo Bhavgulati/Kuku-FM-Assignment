@@ -1,10 +1,10 @@
 # Promo Finder: finding promos in microdrama screenplays
-**Problem 1 (Find the Promos)** · [Name] · [Roll no.] · [Branch] · Prototype: [GitHub link] · Raw outputs: [Drive link] · Video: [link]
+**Problem 1 (Find the Promos)** · Bhavishya Gulati · 20234049 · Electronics and Communication Engineering · Prototype: https://github.com/Bhavgulati/Kuku-FM-Assignment · Raw outputs: https://drive.google.com/drive/folders/1ygWtC8yZLoSYEPBGFS7OmEDp0X111woM · Video: [link]
 
 **In one line:** a re-runnable command-line tool that reads a show's screenplay files and returns *ranked* 20–60s promos, both single clips and cross-episode montages. Each promo comes with exact segment timestamps, the hook, the cliffhanger and why it works. The tool then **grades its own picks with a blind AI "cold viewer"** that also grades naive baselines, so the claims below are measured rather than asserted.
 
 ## Why Problem 1
-[Confirm in your own words.] It is one person (the promo editor), one weekly step (watching about 100 minutes of a show to pick clips), and one output anyone can check (timestamps). Kuku releases shows every week, so the step repeats constantly. The screenplays already carry a timestamp on every line, which means a tool can do the first pass and leave the final choice to the editor.
+I chose Problem 1 because its output can be checked, not just liked. A promo either has a hook in its first 3 seconds, ends unresolved and makes sense to a cold viewer, or it doesn't. Every pick is a set of timestamps an editor can jump to in seconds. The screenplays already give a start and end time for every line, so a whole 50-episode show (about 103 minutes) can be searched from text without watching it. A tool can do the first pass while the editor keeps the final call. It is also the problem where it is easiest to fool yourself, because almost any microdrama clip looks dramatic. So I wanted one where I could measure the AI against naive shortcuts (the episode's last 45 seconds, a random window, simple rules) and report where it loses
 
 ## How it works: what is AI, what is code, where the human stays
 1. **Parse (code).** Each `.txt` file becomes a timeline of 3,727 timed blocks (camera, action, sound, dialogue). The parser tolerates format drift: Episode 6 writes its field names in upper case.
