@@ -1,5 +1,5 @@
 # Promo Finder: finding promos in microdrama screenplays
-**Problem 1 (Find the Promos)** · Bhavishya Gulati · 20234049 · Electronics and Communication Engineering · Prototype: https://github.com/Bhavgulati/Kuku-FM-Assignment · Raw outputs: https://drive.google.com/drive/folders/1ygWtC8yZLoSYEPBGFS7OmEDp0X111woM · Video: [link]
+**Problem 1 (Find the Promos)** · Bhavishya Gulati · 20234049 · Electronics and Communication Engineering · Prototype: https://github.com/Bhavgulati/Kuku-FM-Assignment · Raw outputs: https://drive.google.com/drive/folders/1ygWtC8yZLoSYEPBGFS7OmEDp0X111woM
 
 **In one line:** a re-runnable command-line tool that reads a show's screenplay files and returns *ranked* 20–60s promos, both single clips and cross-episode montages. Each promo comes with exact segment timestamps, the hook, the cliffhanger and why it works. The tool then **grades its own picks with a blind AI "cold viewer"** that also grades naive baselines, so the claims below are measured rather than asserted.
 
