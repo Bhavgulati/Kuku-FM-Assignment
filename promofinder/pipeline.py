@@ -8,7 +8,7 @@ import random
 import time
 from pathlib import Path
 
-from . import report
+from . import pairwise, report, storymap
 from .baselines import make_baselines
 from .config import ROOT, judge_llm_cfg
 from .judge import grade_comprehension, judge_blind, judge_hooks
@@ -20,7 +20,7 @@ from .parallel import pmap
 from .parse import load_show
 from .prompting import prompt_hashes
 from .propose import propose_episode
-from .quality import agreement, compute
+from .quality import agreement, compute, first_listed
 from .rank import rank, score
 from .timeline import Promo
 from .validate import flags
@@ -77,14 +77,25 @@ def run(input_dir: str, out_dir: str, cfg: dict, episodes: set[int] | None = Non
     raw_count = len(singles) + sum(1 for r in rejected if r.get("candidate"))
     _log(f"  {len(singles)} valid single-clip promos, {len(rejected)} rejected")
 
-    # 2. montages
+    # 2. montages: one call over the series spine, and/or built from a story map
     montages: list[Promo] = []
-    if do_montage and pcfg["montages"] > 0:
-        _log("Stage 2/6: building cross-episode montages")
-        montages, mrej = propose_montages(proposer, eps, singles, E, pcfg)
+    story: dict | None = None
+    mode = pcfg.get("montage_mode", "spine")
+    if do_montage and pcfg["montages"] > 0 and mode in ("spine", "both"):
+        _log("Stage 2/6: building cross-episode montages from the series spine")
+        sm, mrej = propose_montages(proposer, eps, singles, E, pcfg)
+        montages += sm
         rejected += mrej
-        raw_count += len(montages) + sum(1 for r in mrej if r.get("candidate"))
-        _log(f"  {len(montages)} valid montages, {len(mrej)} rejected")
+        raw_count += len(sm) + sum(1 for r in mrej if r.get("candidate"))
+        _log(f"  {len(sm)} valid spine montages, {len(mrej)} rejected")
+    if do_montage and pcfg["montages"] > 0 and mode in ("storymap", "both"):
+        _log("Stage 2b: story map (beats -> setup/payoff links -> montages)")
+        stm, srej, story = storymap.build(proposer, eps, E, pcfg, cfg["storymap"], workers)
+        montages += stm
+        rejected += srej
+        raw_count += len(stm) + sum(1 for r in srej if r.get("candidate"))
+        _log(f"  {len(story['beats'])} beats, {len(story['links'])} links, {len(stm)} valid story-map montages, "
+             f"{len(srej)} rejected")
 
     # 3. baselines
     baselines: list[Promo] = []
@@ -117,6 +128,18 @@ def run(input_dir: str, out_dir: str, cfg: dict, episodes: set[int] | None = Non
     for b in baselines:
         score(b, rcfg)
 
+    # 5b. head-to-head re-ranking of the top candidates (Swiss tournament + Bradley-Terry)
+    pw = cfg["pairwise"]
+    pw_kw = dict(batch=pw["batch"], workers=workers, hook_s=pcfg["hook_window_s"], temperature=pw["temperature"])
+    pw_out: dict = {}
+    if pw["enabled"] and pw["rank_top"] > 1:
+        pool = [r["promo"] for r in rows if r["effective"] is not None][: pw["rank_top"]]
+        if len(pool) > 1:
+            _log(f"Stage 5b: head-to-head tournament on the top {len(pool)} ({pw['rounds']} rounds, both orders)")
+            tour = pairwise.tournament(judge, pool, E, names, rounds=pw["rounds"], **pw_kw)
+            rows = rerank(rows, tour, rcfg["shortlist"])
+            pw_out["tournament"] = _tournament_summary(rows, tour)
+
     # 6. judge test-retest on a sample of the tool's promos
     retest = None
     if do_retest and jcfg["retest_sample"] > 0 and ours:
@@ -134,7 +157,26 @@ def run(input_dir: str, out_dir: str, cfg: dict, episodes: set[int] | None = Non
             "promo_ids": [p.promo_id for p in rs],
         }
 
-    q = compute(singles, montages, baselines, sample_nums, rejected, raw_count, retest)
+    # 7. head-to-head evaluation: the tool's first pick vs each baseline on the same episode,
+    #    and story-map montages vs spine montages
+    if pw["enabled"] and pw["eval_vs_baselines"] and baselines:
+        first = first_listed(singles, set(sample_nums))
+        by_src: dict[str, dict[int, Promo]] = {}
+        for b in baselines:
+            by_src.setdefault(b.source, {})[b.segments[0].episode] = b
+        _log(f"Stage 7: head-to-head, tool's first pick vs each baseline on {len(first)} episodes")
+        vs = pairwise.versus(judge, first, by_src, E, names, **pw_kw)
+        pw_out["vs_baselines"] = {src: {k: v for k, v in d.items() if k != "pairs"} for src, d in vs.items()}
+        pw_out["vs_baselines_pairs"] = {src: d["pairs"] for src, d in vs.items()}
+    sp = [m for m in montages if m.source != "storymap"]
+    st = [m for m in montages if m.source == "storymap"]
+    if pw["enabled"] and sp and st:
+        _log(f"Stage 7b: head-to-head, {len(st)} story-map montages vs {len(sp)} spine montages")
+        mm = pairwise.all_pairs(judge, st, sp, E, names, tag="montage", **pw_kw)
+        pw_out["storymap_vs_spine"] = {k: v for k, v in mm.items() if k != "pairs"}
+        pw_out["storymap_vs_spine_pairs"] = mm["pairs"]
+
+    q = compute(singles, montages, baselines, sample_nums, rejected, raw_count, retest, pw_out or None)
     meta = {
         "run_id": out.name,
         "started": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t0)),
@@ -153,6 +195,8 @@ def run(input_dir: str, out_dir: str, cfg: dict, episodes: set[int] | None = Non
         "python": platform.python_version(),
     }
     report.write_all(out, rows, baselines, rejected, q, meta, E, pcfg["hook_window_s"])
+    if story is not None:
+        (out / "story_map.json").write_text(json.dumps(story, ensure_ascii=False, indent=1), encoding="utf-8")
     _log(f"Done in {meta['seconds_total']:.0f}s -> {out}")
     return out
 
@@ -168,3 +212,47 @@ def _sum_usage(a: LLMClient, b: LLMClient) -> dict:
             s[kk] += v[kk]
     out["by_stage"] = stages
     return out
+
+
+def rerank(rows: list[dict], tour: dict, shortlist: int) -> list[dict]:
+    """Re-order the tournament pool by head-to-head strength (ties keep the 1-5 order); every
+    other row keeps its place after the pool. The 1-5 rank is kept as `rank_1to5`."""
+    strength, rec = tour["strength"], tour["record"]
+    pool = [r for r in rows if r["promo"].promo_id in strength]
+    rest = [r for r in rows if r["promo"].promo_id not in strength]
+    pool.sort(key=lambda r: (-strength[r["promo"].promo_id], r["rank"]))
+    out = []
+    for i, r in enumerate(pool + rest, 1):
+        r = dict(r, rank_1to5=r["rank"], rank=i)
+        r["shortlisted"] = r["effective"] is not None and i <= shortlist
+        pid = r["promo"].promo_id
+        if pid in strength:
+            w = rec[pid]
+            r["promo"].scores["pairwise"] = {"strength": round(strength[pid], 3), **w}
+            r["reason"] = (f"#{i} after head-to-heads: won {w['wins']}, tied {w['ties']}, lost {w['losses']} "
+                           f"(strength {strength[pid]:.2f}; was #{r['rank_1to5']} on 1-5 scores). " + (r["reason"] or ""))
+        out.append(r)
+    return out
+
+
+def _kendall_tau(a: list[str], b: list[str]) -> float | None:
+    pos = {x: i for i, x in enumerate(b)}
+    xs = [pos[x] for x in a if x in pos]
+    n = len(xs)
+    if n < 2:
+        return None
+    conc = sum(1 for i in range(n) for j in range(i + 1, n) if xs[i] < xs[j])
+    return round((2 * conc - n * (n - 1) / 2) / (n * (n - 1) / 2), 3)
+
+
+def _tournament_summary(rows: list[dict], tour: dict) -> dict:
+    pool_rows = [r for r in rows if "rank_1to5" in r and r["promo"].promo_id in tour["strength"]]
+    new = [r["promo"].promo_id for r in pool_rows]
+    old = [r["promo"].promo_id for r in sorted(pool_rows, key=lambda r: r["rank_1to5"])]
+    short_new = {r["promo"].promo_id for r in rows if r["shortlisted"]}
+    short_old = {r["promo"].promo_id for r in rows if r.get("rank_1to5", 10**9) <= len(short_new)}
+    return {"pool": len(new), "comparisons": len(tour["results"]),
+            "consistency": tour["consistency"], "hook_consistency": tour["hook_consistency"],
+            "kendall_tau_vs_1to5": _kendall_tau(new, old),
+            "shortlist_changed": sorted(short_new - short_old), "shortlist_dropped": sorted(short_old - short_new),
+            "results": tour["results"]}

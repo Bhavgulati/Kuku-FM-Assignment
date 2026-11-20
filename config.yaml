@@ -38,7 +38,9 @@ promo:
   max_segments: 3           # montages join at most 3 moments
   min_segment_s: 3          # shorter fragments are not usable footage
   candidates_per_episode: 3
-  montages: 5
+  montages: 5               # per montage builder
+  montage_mode: both        # spine = one call over all script lines; storymap = beats -> setup/payoff links
+                            # -> montages; both = build both kinds and let judging and ranking decide
   hook_hints: 6             # code passes the N most visceral moments (text rules) to the proposer as
                             # suggested openings; 0 = off (v1 behaviour). See docs for the v1 vs v2 result.
   temperature: 0.4
@@ -57,6 +59,22 @@ baselines:
   sample_episodes: 20       # B1/B2/B3 are built and judged on this many episodes
   window_s: 45
   seed: 7
+
+storymap:
+  batch_episodes: 5         # episodes per beat-extraction call
+  max_beat_s: 25            # longer "beats" are rejected (a beat is one moment, not a scene)
+  links: 25                 # setup -> payoff links kept
+  temperature: 0.2
+
+# Head-to-head judging: "which of these two would you keep watching?". Every pair is judged in
+# both orders (in different calls); a win must survive the swap, otherwise it is a tie.
+pairwise:
+  enabled: true
+  rank_top: 24              # re-rank this many top candidates by a Swiss tournament (0 = keep 1-5 order)
+  rounds: 6
+  batch: 4                  # pairs per call; a promo never appears twice in one call
+  eval_vs_baselines: true   # the tool's first pick vs B1/B2/B3 on each sampled episode
+  temperature: 0.2
 
 ranking:
   weights: {hook: 1, cliffhanger: 1, standalone: 1}   # the brief gives no priority -> equal

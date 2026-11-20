@@ -184,6 +184,34 @@ class OfflineProvider(Provider):
         if stage == "judge_blind":
             return json.dumps({"understood": "offline", "confusions": [], "open_question": "offline",
                                "cliffhanger": 1 + h, "standalone": 1 + (h + 2) % 5, "would_watch_more": h > 2}), {}
+        if stage == "pair":
+            ids = re.findall(r"^### (P\d+)", user, re.M)
+            return json.dumps({"results": [{"id": i, "hook": "1" if (h + n) % 2 else "2", "overall": "1",
+                                            "reason": "offline"} for n, i in enumerate(ids)]}), {}
+        if stage == "beats":
+            beats = []
+            for part in re.split(r"^=== EPISODE ", user, flags=re.M)[1:]:
+                epn = int(part.split(" ", 1)[0])
+                rows = re.findall(r"^(B\d{3}) (\d\d):(\d\d\.\d\d)–(\d\d):(\d\d\.\d\d)", part, re.M)
+                t = [(i, int(a) * 60 + float(b), int(c) * 60 + float(d)) for i, a, b, c, d in rows]
+                if t:
+                    end = next((x for x in t if x[2] - t[0][1] >= 12), t[-1])
+                    beats.append({"episode": epn, "start_block": t[0][0], "end_block": end[0], "kind": "conflict",
+                                  "summary": "offline beat", "needs": "nothing"})
+            return json.dumps({"beats": beats}), {}
+        if stage == "links":
+            ids = re.findall(r"^(E\d\d\.\d+) ", user, re.M)
+            return json.dumps({"links": [{"setup": ids[0], "payoff": ids[-1], "why": "offline"}] if len(ids) > 1 else [],
+                               "threads": [{"name": "offline", "beats": ids}]}), {}
+        if stage == "smontage":
+            beats = re.findall(r"^(E\d\d\.\d+) \[\w+\] \(([\d.]+)s\)", user, re.M)
+            pick, total = [], 0.0
+            for bid, dur in beats:
+                if total < 25 and len(pick) < 3:
+                    pick.append(bid)
+                    total += float(dur)
+            ms = [{"beats": pick, "hook": "offline", "cliffhanger": "offline", "why": "offline", "trope": "other"}]
+            return json.dumps({"montages": ms if len(pick) > 1 else []}), {}
         if stage == "grade":
             ids = re.findall(r"^### (G\d+)", user, re.M)
             return json.dumps({"grades": [{"id": i, "grade": "consistent", "note": "offline"} for i in ids]}), {}

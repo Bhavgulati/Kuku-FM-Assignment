@@ -141,3 +141,51 @@ def test_hook_claim_check(show):
     assert hook_claim_check(p('"Who did? The man you just met is not who he says he is."'), E, 3.0) == "later_in_clip"
     # whole words only: "an" must not match inside "and"
     assert hook_claim_check(p('"Ten years an hour ago"'), E, 3.0) == "not_in_script"
+
+
+def test_pairwise_packing_and_strengths():
+    from promofinder.pairwise import bradley_terry, pack, record, sign_test
+    jobs = []
+    for a, b in [("A", "B"), ("C", "D"), ("A", "C"), ("B", "D")]:
+        jobs += [(a, b), (b, a)]
+    calls = pack(jobs, 4)
+    for c in calls:
+        ids = [x for i in c for x in jobs[i]]
+        assert len(ids) == len(set(ids)), "a promo appears twice in one call"
+        assert len(c) <= 4
+    assert sorted(i for c in calls for i in c) == list(range(len(jobs)))
+    # A beats B and C, B beats C, D ties everyone -> A > D > C, and A > B > C
+    res = [{"a": "A", "b": "B", "overall": "A"}, {"a": "A", "b": "C", "overall": "A"},
+           {"a": "B", "b": "C", "overall": "B"}, {"a": "D", "b": "A", "overall": "tie"},
+           {"a": "D", "b": "C", "overall": "tie"}, {"a": "B", "b": "D", "overall": None}]
+    s = bradley_terry(["A", "B", "C", "D"], res)
+    assert s["A"] > s["B"] > s["C"] and s["A"] > s["D"] > s["C"]
+    rec = record(["A", "B", "C", "D"], res)
+    assert rec["A"] == {"wins": 2, "ties": 1, "losses": 0} and rec["D"]["ties"] == 2
+    assert sign_test(0, 0) is None and sign_test(14, 5) == 0.0636 and sign_test(5, 5) == 1.0
+
+
+def test_pairwise_swap_rule(show):
+    """A win must survive the order swap; disagreement becomes a tie; identical footage needs no call."""
+    from promofinder.pairwise import judge_pairs
+
+    class Fake:
+        def __init__(self, first_wins):
+            self.first_wins, self.calls = first_wins, 0
+
+        def complete_json(self, system, user, **kw):
+            import re
+            self.calls += 1
+            ids = re.findall(r"^### (P\d+)", user, re.M)
+            return {"results": [{"id": i, "overall": "1" if self.first_wins else "2", "hook": "2"} for i in ids]}
+
+    _, E = show
+    a = Promo("a", "single", "llm", [make_segment(E[2], "B001", "B006")])
+    b = Promo("b", "single", "llm", [make_segment(E[2], "B004", "B009")])
+    same = Promo("c", "single", "llm", [make_segment(E[2], "B001", "B006")])
+    fake = Fake(first_wins=True)  # always prefers whichever is shown first = pure position bias
+    r = judge_pairs(fake, [(a, b), (a, same)], E, None, batch=4, workers=1, hook_s=3.0, temperature=0, tag="t")
+    assert r[0]["overall"] == "tie" and r[0]["overall_consistent"] is False
+    assert r[0]["hook"] == "tie"  # always "2" = position bias too
+    assert r[1]["overall"] == "tie" and r[1]["reasons"] == ["identical footage"]
+    assert fake.calls == 2  # the two orders of (a, b) went to different calls; (a, same) needed none

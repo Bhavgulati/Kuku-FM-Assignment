@@ -63,16 +63,24 @@ def agreement(pairs: list[tuple[int | None, int | None]]) -> dict:
     }
 
 
+def first_listed(singles: list[Promo], sample: set[int]) -> dict[int, Promo]:
+    """The proposer's own first choice per sampled episode (not chosen with the judge)."""
+    out: dict[int, Promo] = {}
+    for p in singles:
+        ep = p.segments[0].episode
+        if ep in sample and (ep not in out or p.promo_id < out[ep].promo_id):
+            out[ep] = p
+    return out
+
+
 def compute(singles: list[Promo], montages: list[Promo], baselines: list[Promo], sample_eps: list[int],
-            rejected: list[dict], raw_proposal_count: int, retest: dict | None) -> dict:
+            rejected: list[dict], raw_proposal_count: int, retest: dict | None, pairwise: dict | None = None) -> dict:
     sample = set(sample_eps)
-    first_listed: dict[int, Promo] = {}
+    first = first_listed(singles, sample)
     best_of: dict[int, Promo] = {}
     for p in singles:
         ep = p.segments[0].episode
         if ep in sample:
-            if ep not in first_listed or p.promo_id < first_listed[ep].promo_id:
-                first_listed[ep] = p
             c = p.scores.get("combined")
             if c is not None and (ep not in best_of or c > (best_of[ep].scores.get("combined") or -1)):
                 best_of[ep] = p
@@ -82,14 +90,15 @@ def compute(singles: list[Promo], montages: list[Promo], baselines: list[Promo],
 
     groups = {
         "Tool: all single clips": group_stats(singles),
-        "Tool: first-listed clip per sampled episode": group_stats(list(first_listed.values())),
-        "Tool: montages": group_stats(montages),
+        "Tool: first-listed clip per sampled episode": group_stats(list(first.values())),
+        "Tool: montages (spine)": group_stats([m for m in montages if m.source != "storymap"]),
+        "Tool: montages (story map)": group_stats([m for m in montages if m.source == "storymap"]),
         "B1 episode ending (last ~45s)": group_stats(list(by_src.get("B1", {}).values())),
         "B2 random 45s window": group_stats(list(by_src.get("B2", {}).values())),
         "B3 rules only (no AI)": group_stats(list(by_src.get("B3", {}).values())),
     }
     h2h = {
-        f"first-listed vs {src}": head_to_head(first_listed, by_src.get(src, {})) for src in ("B1", "B2", "B3")
+        f"first-listed vs {src}": head_to_head(first, by_src.get(src, {})) for src in ("B1", "B2", "B3")
     }
     h2h["best-of-episode vs B1 (optimistic: picked using the judge)"] = head_to_head(best_of, by_src.get("B1", {}))
 
@@ -135,6 +144,7 @@ def compute(singles: list[Promo], montages: list[Promo], baselines: list[Promo],
         "misunderstood": [_brief(p) for p in misunderstood],
         "confused_count": len(confused),
         "sample_episodes": sorted(sample),
+        "pairwise": pairwise or {},
     }
     return q
 

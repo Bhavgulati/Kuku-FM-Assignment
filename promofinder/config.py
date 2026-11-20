@@ -21,6 +21,7 @@ DEFAULTS: dict = {
         "hook_window_s": 3.0,
         "candidates_per_episode": 3,
         "montages": 5,
+        "montage_mode": "both",  # spine (one call over all script lines) | storymap | both
         "hook_hints": 6,
         "tropes": [
             "betrayal", "humiliation", "secret identity", "rescue/protector", "romance",
@@ -30,6 +31,9 @@ DEFAULTS: dict = {
     },
     "judging": {"hook_batch_size": 10, "grade_batch_size": 10, "temperature": 0.2, "retest_sample": 20, "seed": 7},
     "baselines": {"enabled": True, "sample_episodes": 20, "window_s": 45.0, "seed": 7},
+    "storymap": {"batch_episodes": 5, "max_beat_s": 25.0, "links": 25, "temperature": 0.2},
+    "pairwise": {"enabled": True, "rank_top": 24, "rounds": 6, "batch": 4, "eval_vs_baselines": True,
+                 "temperature": 0.2},
     "ranking": {
         "weights": {"hook": 1.0, "cliffhanger": 1.0, "standalone": 1.0},
         "comprehension_penalty": {"consistent": 0.0, "partial": 0.25, "contradicted": 1.0},

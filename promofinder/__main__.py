@@ -19,7 +19,7 @@ from .parse import load_show, parse_episode_range
 
 
 def _overrides(a) -> dict:
-    o: dict = {"llm": {}, "judge": {}, "promo": {}, "runtime": {}}
+    o: dict = {"llm": {}, "judge": {}, "promo": {}, "runtime": {}, "pairwise": {}}
     if a.provider:
         o["llm"]["provider"] = a.provider
     if a.model:
@@ -34,6 +34,12 @@ def _overrides(a) -> dict:
         o["promo"]["candidates_per_episode"] = a.candidates
     if getattr(a, "hook_hints", None) is not None:
         o["promo"]["hook_hints"] = a.hook_hints
+    if getattr(a, "montage_mode", None):
+        o["promo"]["montage_mode"] = a.montage_mode
+    if getattr(a, "pairwise_top", None) is not None:
+        o["pairwise"]["rank_top"] = a.pairwise_top
+    if getattr(a, "no_pairwise", False):
+        o["pairwise"]["enabled"] = False
     if getattr(a, "max_rpm", None):
         o["runtime"]["max_rpm"] = a.max_rpm
     if getattr(a, "workers", None):
@@ -63,6 +69,10 @@ def main(argv=None) -> int:
     r.add_argument("--judge-model", help="use a different model for judging")
     r.add_argument("--candidates", type=int, help="max promos proposed per episode")
     r.add_argument("--hook-hints", type=int, help="visceral moments suggested to the proposer (0 = off)")
+    r.add_argument("--montage-mode", choices=["spine", "storymap", "both"],
+                   help="how montages are built: one call over the script lines, from a story map, or both")
+    r.add_argument("--pairwise-top", type=int, help="re-rank this many top candidates head-to-head (0 = keep 1-5 order)")
+    r.add_argument("--no-pairwise", action="store_true", help="no head-to-head judging at all")
     r.add_argument("--max-rpm", type=float, help="requests per minute cap")
     r.add_argument("--workers", type=int, help="parallel requests")
     r.add_argument("--no-montage", action="store_true")

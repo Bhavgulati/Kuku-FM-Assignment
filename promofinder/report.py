@@ -58,6 +58,8 @@ def promo_dict(p: Promo, E: dict[int, Episode], hook_s: float, row: dict | None 
         "flags": p.flags,
         "repaired": p.repaired,
         "hook_quote_check": p.hook_claim,
+        "head_to_head": p.scores.get("pairwise"),
+        "rank_1to5": row.get("rank_1to5") if row else None,
         "duplicate_of": row.get("duplicate_of") if row else None,
         "rank_reason": row.get("reason") if row else None,
         "viewer_render": render(view_items(p, E)),
@@ -69,7 +71,7 @@ def promo_dict(p: Promo, E: dict[int, Episode], hook_s: float, row: dict | None 
 CSV_COLS = ["rank", "shortlisted", "promo_id", "kind", "segments", "duration_s", "episode_depth", "trope", "hook",
             "cliffhanger", "why_it_works", "score_final", "hook_score", "cliffhanger_score", "standalone_score",
             "comprehension", "would_watch_more", "cold_viewer_open_question", "cold_viewer_confusions", "flags",
-            "duplicate_of", "rank_reason"]
+            "head_to_head", "rank_1to5", "duplicate_of", "rank_reason"]
 
 
 def write_csv(path: Path, dicts: list[dict]):
@@ -82,7 +84,12 @@ def write_csv(path: Path, dicts: list[dict]):
                         d["episode_depth"], d["trope"], d["hook"], d["cliffhanger"], d["why_it_works"], s.get("final"),
                         s.get("hook"), s.get("cliffhanger"), s.get("standalone"), s.get("comprehension"),
                         cv.get("would_watch_more"), cv.get("open_question"), " | ".join(cv.get("confusions") or []),
-                        ",".join(d["flags"]), d["duplicate_of"], d["rank_reason"]])
+                        ",".join(d["flags"]), _h2h(d.get("head_to_head")), d.get("rank_1to5"), d["duplicate_of"],
+                        d["rank_reason"]])
+
+
+def _h2h(h: dict | None) -> str:
+    return "" if not h else f"{h['wins']}-{h['ties']}-{h['losses']} (strength {h['strength']:.2f})"
 
 
 def _fmt(v):
@@ -130,6 +137,7 @@ def quality_md(q: dict, meta: dict) -> str:
                      f"{_fmt(a.get('mean_abs_diff'))} |")
     else:
         L.append("Not run.")
+    L += _pairwise_md(q.get("pairwise") or {})
     L += ["", "## 4. Where it picks badly (automatic lists)", "",
           f"- Flags across the tool's promos: {q['flags'] or 'none'}",
           f"- Proposer's quoted hook line vs the actual cut (code check; `ok` = plays in the first 3s): "
@@ -161,6 +169,41 @@ def quality_md(q: dict, meta: dict) -> str:
     for k, s in sorted(u["by_stage"].items()):
         L.append(f"| {k} | {s['calls']} | {s['cache_hits']} | {s['input_tokens']:,} | {s['output_tokens']:,} |")
     return "\n".join(L) + "\n"
+
+
+def _tally_cell(t: dict) -> str:
+    if not t or not t.get("n"):
+        return "–"
+    p = t.get("sign_test_p")
+    return (f"{t['win']}–{t['tie']}–{t['loss']} ({_pf(t['win_pct'])} won" + (f", p={p:.2f}" if p is not None else "") + ")")
+
+
+def _pairwise_md(pw: dict) -> list[str]:
+    if not pw:
+        return []
+    L = ["", "## 3b. Head-to-head judging (pairwise)", "",
+         "Each pair is judged twice with the order swapped, in different calls. A win counts only if it survives "
+         "the swap; otherwise it is a tie. Results are win–tie–loss from the first side's point of view; p is a "
+         "two-sided sign test on the decided pairs.", ""]
+    t = pw.get("tournament")
+    if t:
+        c, hc = t["consistency"], t["hook_consistency"]
+        L += [f"- Re-ranking: Swiss tournament on the top {t['pool']} candidates, {t['comparisons']} pairs. "
+              f"Same verdict after the swap: {_pf(c['consistent_pct'])} overall, {_pf(hc['consistent_pct'])} on hooks.",
+              f"- Agreement with the 1–5 order (Kendall tau): {_fmt(t['kendall_tau_vs_1to5'])}. Entered the shortlist: "
+              f"{', '.join(t['shortlist_changed']) or 'none'}. Left it: {', '.join(t['shortlist_dropped']) or 'none'}."]
+    vs = pw.get("vs_baselines")
+    if vs:
+        L += ["", "| Tool's first pick vs | Overall (W–T–L) | Hook, first 3s (W–T–L) | Same verdict after swap |",
+              "|---|---|---|---|"]
+        for src, d in vs.items():
+            L.append(f"| {src} | {_tally_cell(d['overall'])} | {_tally_cell(d['hook'])} | "
+                     f"{_pf(d['consistency']['consistent_pct'])} |")
+    mm = pw.get("storymap_vs_spine")
+    if mm:
+        L += ["", f"- Story-map montages vs spine montages (every pair): overall {_tally_cell(mm['overall'])}, "
+                  f"hook {_tally_cell(mm['hook'])}, same verdict after swap {_pf(mm['consistency']['consistent_pct'])}."]
+    return L
 
 
 def write_all(out: Path, rows: list[dict], baselines: list[Promo], rejected: list[dict], q: dict, meta: dict,
@@ -235,6 +278,10 @@ def _card(d: dict) -> str:
     chips += [f'<span class="chip flag">{_e(f)}</span>' for f in d["flags"]]
     if d.get("duplicate_of"):
         chips.append(f'<span class="chip flag">overlaps {_e(d["duplicate_of"])}</span>')
+    if d.get("head_to_head"):
+        chips.append(f'<span class="chip">head-to-head {_e(_h2h(d["head_to_head"]))}</span>')
+    if d.get("source") == "storymap":
+        chips.append('<span class="chip">from story map</span>')
     comp = s.get("comprehension")
     comp_cls = {"consistent": "good", "partial": "warnc", "contradicted": "bad"}.get(comp, "")
     conf = "".join(f"<li>{_e(c)}</li>" for c in (cv.get("confusions") or [])) or "<li>none</li>"
