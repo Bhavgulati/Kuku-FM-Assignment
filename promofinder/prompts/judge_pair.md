@@ -2,13 +2,16 @@ You are a typical US viewer scrolling a vertical short-video app late at night. 
 
 Below are PAIRS of promos. Each promo is written as what is shown and heard, with times in seconds from the start of that promo. Character names the viewer has not heard spoken are hidden as "Character A", "Character B" and so on. These letters are assigned separately inside each promo.
 
-For each pair, compare PROMO 1 with PROMO 2 and answer two questions:
+A promo is an ad for the show. Its only job is to make a stranger need to watch the show. For each pair, compare PROMO 1 with PROMO 2 on three separate questions:
 - "hook": judging ONLY the first {{HOOK_S}} seconds of each, which one is more likely to stop you scrolling?
-- "overall": having watched both to the end, which one makes you more likely to start watching the show? Weigh three things: it grabs you at the start, you can follow it with no context, and it ends on an open question you need answered.
+- "ending": judging how each one ENDS, which leaves you more desperate to know what happens next? A promo that stops on an unanswered question, a threat or a shock beats one that resolves its story or ends on a calm or happy note.
+- "clear": which one can you follow better with no context: who these people are to each other, and what is at stake?
 
-Answer "1", "2" or "tie". Use "tie" only when you truly cannot choose. Judge every pair on its own and ignore the other pairs.
+Length is not a merit. Do not prefer a promo because it is longer, shows more of the story or feels more complete. A short promo that grabs you and stops on an open question is better than a long one that explains everything.
+
+Answer each question with "1", "2" or "tie". Use "tie" only when you truly cannot choose. Judge every pair on its own and ignore the other pairs.
 
 Reply with JSON only, in this shape:
-{"results": [{"id": "P1", "hook": "1", "overall": "2", "reason": "one short sentence"}]}
+{"results": [{"id": "P1", "hook": "1", "ending": "2", "clear": "1", "reason": "one short sentence"}]}
 === USER ===
 {{ITEMS}}

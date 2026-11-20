@@ -176,6 +176,13 @@ def run(input_dir: str, out_dir: str, cfg: dict, episodes: set[int] | None = Non
         pw_out["storymap_vs_spine"] = {k: v for k, v in mm.items() if k != "pairs"}
         pw_out["storymap_vs_spine_pairs"] = mm["pairs"]
 
+    if pw_out:
+        durations = {p.promo_id: p.duration for p in ours + baselines}
+        uses = (("tournament", (pw_out.get("tournament") or {}).get("results", [])),
+                ("vs_baselines", [r for rs in (pw_out.get("vs_baselines_pairs") or {}).values() for r in rs]),
+                ("montages", pw_out.get("storymap_vs_spine_pairs", [])))
+        pw_out["length_bias"] = {name: pairwise.length_bias(res, durations) for name, res in uses if res}
+
     q = compute(singles, montages, baselines, sample_nums, rejected, raw_count, retest, pw_out or None)
     meta = {
         "run_id": out.name,
@@ -253,6 +260,7 @@ def _tournament_summary(rows: list[dict], tour: dict) -> dict:
     short_old = {r["promo"].promo_id for r in rows if r.get("rank_1to5", 10**9) <= len(short_new)}
     return {"pool": len(new), "comparisons": len(tour["results"]),
             "consistency": tour["consistency"], "hook_consistency": tour["hook_consistency"],
+            "by_criterion_consistency": tour["by_criterion_consistency"],
             "kendall_tau_vs_1to5": _kendall_tau(new, old),
             "shortlist_changed": sorted(short_new - short_old), "shortlist_dropped": sorted(short_old - short_new),
             "results": tour["results"]}

@@ -182,9 +182,10 @@ def _pairwise_md(pw: dict) -> list[str]:
     if not pw:
         return []
     L = ["", "## 3b. Head-to-head judging (pairwise)", "",
-         "Each pair is judged twice with the order swapped, in different calls. A win counts only if it survives "
-         "the swap; otherwise it is a tie. Results are win–tie–loss from the first side's point of view; p is a "
-         "two-sided sign test on the decided pairs.", ""]
+         "Each pair is judged twice with the order swapped, in different calls, on three criteria: hook (first "
+         "3s), ending (an open question beats a resolution) and clear (follows with no context). Overall = whoever "
+         "wins more criteria. A win counts only if it survives the swap; otherwise it is a tie. Results are "
+         "win–tie–loss from the first side's point of view; p is a two-sided sign test on the decided pairs.", ""]
     t = pw.get("tournament")
     if t:
         c, hc = t["consistency"], t["hook_consistency"]
@@ -194,15 +195,25 @@ def _pairwise_md(pw: dict) -> list[str]:
               f"{', '.join(t['shortlist_changed']) or 'none'}. Left it: {', '.join(t['shortlist_dropped']) or 'none'}."]
     vs = pw.get("vs_baselines")
     if vs:
-        L += ["", "| Tool's first pick vs | Overall (W–T–L) | Hook, first 3s (W–T–L) | Same verdict after swap |",
-              "|---|---|---|---|"]
+        L += ["", "| Tool's first pick vs | Overall | Hook (first 3s) | Ending | Clear | Same overall verdict after swap |",
+              "|---|---|---|---|---|---|"]
         for src, d in vs.items():
             L.append(f"| {src} | {_tally_cell(d['overall'])} | {_tally_cell(d['hook'])} | "
+                     f"{_tally_cell(d.get('ending'))} | {_tally_cell(d.get('clear'))} | "
                      f"{_pf(d['consistency']['consistent_pct'])} |")
     mm = pw.get("storymap_vs_spine")
     if mm:
         L += ["", f"- Story-map montages vs spine montages (every pair): overall {_tally_cell(mm['overall'])}, "
                   f"hook {_tally_cell(mm['hook'])}, same verdict after swap {_pf(mm['consistency']['consistent_pct'])}."]
+    lb = pw.get("length_bias")
+    if lb:
+        L += ["", "Length check: among decided pairs whose lengths differ by at least 5s, how often the LONGER promo "
+                  "won (about 50% = length does not drive the verdict):", "",
+              "| Comparison | Overall | Hook | Ending | Clear |", "|---|---|---|---|---|"]
+        for name, d in lb.items():
+            L.append(f"| {name} | " + " | ".join(
+                f"{_pf(d[k]['longer_won_pct'])} of {d[k]['decided']}" for k in ("overall", "hook", "ending", "clear"))
+                + " |")
     return L
 
 

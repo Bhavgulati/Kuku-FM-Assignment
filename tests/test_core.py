@@ -189,3 +189,11 @@ def test_pairwise_swap_rule(show):
     assert r[0]["hook"] == "tie"  # always "2" = position bias too
     assert r[1]["overall"] == "tie" and r[1]["reasons"] == ["identical footage"]
     assert fake.calls == 2  # the two orders of (a, b) went to different calls; (a, same) needed none
+
+
+def test_pairwise_overall_is_majority_of_criteria():
+    from promofinder.pairwise import _majority
+    assert _majority({"hook": "x", "ending": "y", "clear": "x"}, "x", "y") == "x"
+    assert _majority({"hook": "x", "ending": "tie", "clear": "y"}, "x", "y") == "tie"
+    assert _majority({"hook": None, "ending": None, "clear": "y"}, "x", "y") == "y"
+    assert _majority({"hook": None, "ending": None, "clear": None}, "x", "y") is None

@@ -186,8 +186,8 @@ class OfflineProvider(Provider):
                                "cliffhanger": 1 + h, "standalone": 1 + (h + 2) % 5, "would_watch_more": h > 2}), {}
         if stage == "pair":
             ids = re.findall(r"^### (P\d+)", user, re.M)
-            return json.dumps({"results": [{"id": i, "hook": "1" if (h + n) % 2 else "2", "overall": "1",
-                                            "reason": "offline"} for n, i in enumerate(ids)]}), {}
+            return json.dumps({"results": [{"id": i, "hook": "1" if (h + n) % 2 else "2", "ending": "1",
+                                            "clear": "1", "reason": "offline"} for n, i in enumerate(ids)]}), {}
         if stage == "beats":
             beats = []
             for part in re.split(r"^=== EPISODE ", user, flags=re.M)[1:]:

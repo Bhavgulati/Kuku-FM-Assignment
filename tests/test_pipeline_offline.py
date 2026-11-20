@@ -32,6 +32,7 @@ def test_offline_pipeline(tmp_path):
     pw = json.loads((out / "quality.json").read_text(encoding="utf-8"))["pairwise"]
     assert pw["tournament"]["pool"] >= 2 and set(pw["vs_baselines"]) == {"B1", "B2", "B3"}
     assert any(d["head_to_head"] for d in ranked)
+    assert pw["vs_baselines"]["B1"]["hook"]["n"] > 0, "pair verdicts must reach the judge and come back"
     # second run is served entirely from cache
     out2 = run(str(FIX), str(tmp_path / "out2"), cfg)
     meta2 = json.loads((out2 / "run_meta.json").read_text(encoding="utf-8"))

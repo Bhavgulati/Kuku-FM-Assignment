@@ -6,6 +6,14 @@ consistent. Every pair is judged twice, with the order swapped, in different cal
 only counts if it survives the swap; otherwise the pair is a tie. This cancels the judge's
 preference for the first or second slot, and also measures it (`consistency`).
 
+The judge answers three questions per pair, matching the brief: hook (first 3s only),
+ending (an open question beats a resolution) and clear (follows with no context). The first
+version asked one holistic "which makes you watch the show?" question instead, and the longer
+promo won 80% of decided pairs ("fuller narrative", "more complete arc"), which contradicts the
+cliffhanger rule. So "overall" is now computed in code: the promo that wins more of the three
+criteria in that order, with equal weights, as in the 1-5 ranking. length_bias() keeps
+measuring the problem in every run.
+
 Used three ways:
   1. tournament(): re-rank the top of the list with a Swiss tournament + Bradley–Terry fit
   2. versus(): the tool's pick vs each baseline on the same episode
@@ -20,6 +28,9 @@ from .llm.base import LLMClient, items_of
 from .parallel import pmap
 from .prompting import fill, load_prompt
 from .timeline import Promo
+
+CRITERIA = ("hook", "ending", "clear")
+KEYS = CRITERIA + ("overall",)
 
 
 def pack(jobs: list[tuple[str, str]], batch: int) -> list[list[int]]:
@@ -45,11 +56,20 @@ def _pick(v, first: str, second: str) -> str | None:
     return first if v == "1" else second if v == "2" else "tie" if v == "tie" else None
 
 
+def _majority(v: dict, x: str, y: str) -> str | None:
+    """One order's overall verdict: whoever wins more of the three criteria."""
+    got = [v.get(k) for k in CRITERIA]
+    if all(g is None for g in got):
+        return None
+    nx, ny = got.count(x), got.count(y)
+    return x if nx > ny else y if ny > nx else "tie"
+
+
 def judge_pairs(client: LLMClient, pairs: list[tuple[Promo, Promo]], E: dict, names: list[str] | None, *,
                 batch: int, workers: int, hook_s: float, temperature: float, tag: str) -> list[dict]:
-    """Judge each pair in both orders. Returns one record per pair:
-    {a, b, overall, hook, overall_consistent, hook_consistent, reasons}, where overall/hook is
-    the winning promo id, 'tie', or None if a verdict is missing."""
+    """Judge each pair in both orders. Returns one record per pair: {a, b, reasons, and for each
+    of hook / ending / clear / overall: the winning promo id, 'tie', or None if a verdict is
+    missing, plus <key>_consistent}."""
     system, user_t = load_prompt("judge_pair")
     system = fill(system, HOOK_S=int(hook_s))
     renders = {p.promo_id: blind_render(p, E, names) for pair in pairs for p in pair}
@@ -57,8 +77,8 @@ def judge_pairs(client: LLMClient, pairs: list[tuple[Promo, Promo]], E: dict, na
     jobs: list[tuple[Promo, Promo]] = []
     for k, (a, b) in enumerate(pairs):
         if renders[a.promo_id] == renders[b.promo_id]:  # same footage: nothing to compare, no call
-            records[k] = {"a": a.promo_id, "b": b.promo_id, "overall": "tie", "hook": "tie",
-                          "overall_consistent": None, "hook_consistent": None, "reasons": ["identical footage"]}
+            records[k] = {"a": a.promo_id, "b": b.promo_id, "reasons": ["identical footage"],
+                          **{key: "tie" for key in KEYS}, **{f"{key}_consistent": None for key in KEYS}}
             continue
         jobs += [(a, b), (b, a)]
     calls = pack([(x.promo_id, y.promo_id) for x, y in jobs], batch)
@@ -76,9 +96,10 @@ def judge_pairs(client: LLMClient, pairs: list[tuple[Promo, Promo]], E: dict, na
             job = ids.get(str(it.get("id", "")).strip())
             if job is not None:
                 x, y = job
-                out[(x.promo_id, y.promo_id)] = {"overall": _pick(it.get("overall"), x.promo_id, y.promo_id),
-                                                 "hook": _pick(it.get("hook"), x.promo_id, y.promo_id),
-                                                 "reason": str(it.get("reason", "")).strip()}
+                v = {key: _pick(it.get(key), x.promo_id, y.promo_id) for key in CRITERIA}
+                v["overall"] = _majority(v, x.promo_id, y.promo_id)
+                v["reason"] = str(it.get("reason", "")).strip()
+                out[(x.promo_id, y.promo_id)] = v
         return out
 
     verdicts: dict = {}
@@ -92,7 +113,7 @@ def judge_pairs(client: LLMClient, pairs: list[tuple[Promo, Promo]], E: dict, na
             continue
         v1, v2 = verdicts.get((a.promo_id, b.promo_id)), verdicts.get((b.promo_id, a.promo_id))
         rec = {"a": a.promo_id, "b": b.promo_id, "reasons": [v and v["reason"] for v in (v1, v2)]}
-        for key in ("overall", "hook"):
+        for key in KEYS:
             w1, w2 = (v1 or {}).get(key), (v2 or {}).get(key)
             if w1 is None or w2 is None:
                 rec[key], rec[f"{key}_consistent"] = None, None
@@ -176,7 +197,8 @@ def tournament(client: LLMClient, pool: list[Promo], E: dict, names: list[str] |
                                temperature=temperature, tag=f"rank:r{rnd + 1}")
         strength = bradley_terry(ids, results)
     return {"strength": strength, "record": record(ids, results), "results": results,
-            "consistency": consistency(results), "hook_consistency": consistency(results, "hook")}
+            "consistency": consistency(results), "hook_consistency": consistency(results, "hook"),
+            "by_criterion_consistency": {k: consistency(results, k) for k in KEYS}}
 
 
 def versus(client: LLMClient, ours: dict[int, Promo], base_by_src: dict[str, dict[int, Promo]], E: dict,
@@ -194,8 +216,8 @@ def versus(client: LLMClient, ours: dict[int, Promo], base_by_src: dict[str, dic
     out: dict = {}
     for src in sorted(set(srcs)):
         rs = [r for r, s in zip(res, srcs) if s == src]
-        out[src] = {"pairs": rs, "overall": _tally(rs, "overall"), "hook": _tally(rs, "hook"),
-                    "consistency": consistency(rs), "hook_consistency": consistency(rs, "hook")}
+        out[src] = {"pairs": rs, **{k: _tally(rs, k) for k in KEYS}, "consistency": consistency(rs),
+                    "hook_consistency": consistency(rs, "hook")}
     return out
 
 
@@ -205,8 +227,7 @@ def all_pairs(client: LLMClient, left: list[Promo], right: list[Promo], E: dict,
     pairs = [(a, b) for a in left for b in right]
     res = judge_pairs(client, pairs, E, names, batch=batch, workers=workers, hook_s=hook_s, temperature=temperature,
                       tag=tag)
-    return {"pairs": res, "overall": _tally(res, "overall"), "hook": _tally(res, "hook"),
-            "consistency": consistency(res)}
+    return {"pairs": res, **{k: _tally(res, k) for k in KEYS}, "consistency": consistency(res)}
 
 
 def _tally(rs: list[dict], key: str) -> dict:
@@ -218,6 +239,19 @@ def _tally(rs: list[dict], key: str) -> dict:
     return {"n": n, "win": w, "tie": n - w - l, "loss": l,
             "win_pct": round(100.0 * w / n, 1) if n else None,
             "sign_test_p": sign_test(w, l)}
+
+
+def length_bias(results: list[dict], durations: dict[str, float], min_gap_s: float = 5.0) -> dict:
+    """Among decided pairs whose lengths differ by >= min_gap_s: how often did the longer promo
+    win? About 50% means length does not drive the verdict."""
+    out = {}
+    for key in KEYS:
+        dec = [r for r in results if r.get(key) not in (None, "tie") and r["a"] in durations
+               and r["b"] in durations and abs(durations[r["a"]] - durations[r["b"]]) >= min_gap_s]
+        longer = sum(durations[r[key]] == max(durations[r["a"]], durations[r["b"]]) for r in dec)
+        out[key] = {"decided": len(dec), "longer_won": longer,
+                    "longer_won_pct": round(100.0 * longer / len(dec), 1) if dec else None}
+    return out
 
 
 def sign_test(w: int, l: int) -> float | None:
