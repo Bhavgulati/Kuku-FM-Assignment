@@ -1,0 +1,66 @@
+# Promo Finder configuration. CLI flags override anything here.
+
+# --- Which model does the work -------------------------------------------------
+# Swap models by editing this block (or --provider / --model / --base-url on the CLI).
+#   gemini         Google Gemini REST API, key in GEMINI_API_KEY (.env)
+#   openai_compat  any OpenAI-compatible endpoint (Groq, OpenRouter, Ollama, vLLM, a Kuku API...)
+#   offline        no network; structural stub for tests (not a quality method)
+llm:
+  provider: gemini
+  model: gemini-3.5-flash-lite   # Checked with `python -m promofinder models` on 2026-11-20.
+                            # Free-tier reality for this key: each Flash model is capped at ~20 requests/day
+                            # (quota GenerateRequestsPerDayPerProjectPerModel-FreeTier); a full show needs ~55
+                            # proposer + ~280 judge calls, so the default is Flash-Lite for everything.
+                            # With a paid key, set model: gemini-3.5-flash (or 3.8-flash) and keep judge on lite.
+  api_key_env: GEMINI_API_KEY
+  base_url: null            # e.g. https://api.groq.com/openai/v1 for openai_compat
+  extra: {}                 # provider-specific, e.g. {generation_config: {thinkingConfig: {thinkingLevel: low}}}
+
+# Judge with a different model: anything not set falls back to llm: ('extra' is replaced whole).
+# Using a separate model for the high-volume judging (~80% of calls) reduces the "model grades
+# its own homework" bias. Empty = judge with the proposer model (the free-tier default here).
+judge: {}
+#  model: gemini-3.5-flash-lite
+#  extra: {}
+
+runtime:
+  max_rpm: 8                # stay under the free-tier requests-per-minute limit
+  workers: 4                # parallel requests (the shared throttle still applies)
+  max_retries: 6
+  timeout_s: 300
+  cache_dir: .cache/llm     # responses are cached here: reruns are free and resumable
+
+# --- What counts as a promo (from the brief) ------------------------------------
+promo:
+  min_s: 20
+  max_s: 60
+  hook_window_s: 3
+  max_segments: 3           # montages join at most 3 moments
+  min_segment_s: 3          # shorter fragments are not usable footage
+  candidates_per_episode: 3
+  montages: 5
+  hook_hints: 6             # code passes the N most visceral moments (text rules) to the proposer as
+                            # suggested openings; 0 = off (v1 behaviour). See docs for the v1 vs v2 result.
+  temperature: 0.4
+  tropes: [betrayal, humiliation, secret identity, rescue/protector, romance,
+           danger/threat, revenge/comeuppance, villain scheme, other]
+
+judging:
+  hook_batch_size: 10       # openings rated side by side per call
+  grade_batch_size: 10
+  temperature: 0.2
+  retest_sample: 20         # promos judged twice to measure judge noise
+  seed: 7
+
+baselines:
+  enabled: true
+  sample_episodes: 20       # B1/B2/B3 are built and judged on this many episodes
+  window_s: 45
+  seed: 7
+
+ranking:
+  weights: {hook: 1, cliffhanger: 1, standalone: 1}   # the brief gives no priority -> equal
+  comprehension_penalty: {consistent: 0, partial: 0.25, contradicted: 1.0}
+  trope_penalty: 0.15       # mild push for variety in the posting order
+  overlap_threshold: 0.5    # >50% shared footage = same promo; keep the better one
+  shortlist: 15

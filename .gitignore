@@ -1,0 +1,21 @@
+# secrets
+.env
+
+# environment / caches
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.cache/
+
+# Kuku's input pack is confidential - never commit it
+*-scripts*/
+data/
+input/
+
+# Run outputs contain excerpts of the confidential scripts.
+# Share them through the submission link instead of a public repo.
+outputs/
+
+# intermediate file written by docs/build_pdf.py
+docs/solution.html
