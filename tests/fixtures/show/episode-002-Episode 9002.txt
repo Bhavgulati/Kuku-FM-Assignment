@@ -1,0 +1,58 @@
+EPISODE NUMBER: Episode 2
+EPISODE LOGLINE: Mara confronts her partner, who reveals he was blackmailed.
+CONTINUITY NOTES: Picks up from Episode 1's cliffhanger on the street.
+
+--- SCRIPT START ---
+
+SCENE 01
+SCENE HEADING: EXT. STREET – CONTINUOUS
+SCENE START: 00:00.00
+SCENE END: 00:45.00
+
+ACTIONS AND DIALOGUE:
+
+**CAMERA:**
+Start: (00:00.00) | End: (00:06.00)
+Mara slaps her partner across the face.
+
+**SOUND FX:**
+Start: (00:00.50) | End: (00:01.00)
+A sharp slap.
+
+**MARA (Furious):**
+Start: (00:02.00) | End: (00:07.00)
+"Ten years and you sold it like it was nothing!"
+
+**CAMERA:**
+Start: (00:06.00) | End: (00:15.00)
+Close-up on the partner, cheek red.
+
+**PARTNER (Broken):**
+Start: (00:08.00) | End: (00:12.00)
+"They said they would hurt you if I refused."
+
+**MARA (Confused):**
+Start: (00:13.00) | End: (00:15.00)
+"Who did?"
+
+**CAMERA:**
+Start: (00:15.00) | End: (00:30.00)
+The man in the suit watches from the car window.
+
+**PARTNER (Whispering):**
+Start: (00:17.00) | End: (00:22.00)
+"The man you just met is not who he says he is."
+
+**ACTION:**
+Start: (00:24.00) | End: (00:30.00)
+The car door opens slowly.
+
+**CAMERA:**
+Start: (00:30.00) | End: (00:45.00)
+Extreme close-up on Mara's eyes widening.
+
+**MAN IN SUIT (O.S.) (Menacing):**
+Start: (00:33.00) | End: (00:38.00)
+"Hello again, Mara. We need to talk about your father."
+
+--- SCRIPT END ---

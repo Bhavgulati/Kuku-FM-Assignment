@@ -1,0 +1,89 @@
+EPISODE NUMBER: Episode 1
+EPISODE LOGLINE: A baker discovers her business partner has sold their shop behind her back.
+CONTINUITY NOTES: First episode of this synthetic test show.
+
+--- SCRIPT START ---
+
+SCENE 01
+Scene heading: INT. BAKERY – DAY
+Scene start: 00:00.00
+Scene end: 00:30.00
+
+Actions and dialogue:
+
+**CAMERA:**
+Start: (00:00.00) | End: (00:05.00)
+Wide shot of a quiet bakery at dawn.
+
+**ACTION:**
+Start: (00:01.00) | End: (00:05.00)
+Mara kneads dough alone at the counter.
+
+**CAMERA:**
+Start: (00:05.00) | End: (00:10.00)
+Close-up on the door as a man in a suit enters.
+
+**MAN IN SUIT (Cold, Smug):**
+Start: (00:06.00) | End: (00:09.00)
+"You have one hour to get out."
+
+**CAMERA:**
+Start: (00:10.00) | End: (00:15.00)
+Close-up on Mara, flour on her hands.
+
+**MARA (Shocked):**
+Start: (00:09.50) | End: (00:12.50)
+"This is my shop!"
+
+**MAN IN SUIT (Mocking):**
+Start: (00:13.00) | End: (00:16.00)
+"Not anymore. Your partner sold it."
+
+**CAMERA:**
+Start: (00:15.00) | End: (00:20.00)
+Medium shot as Mara drops the rolling pin.
+
+**SOUND FX:**
+Start: (00:16.00) | End: (00:17.00)
+A loud crack as the rolling pin hits the floor.
+
+**MARA (Trembling, Furious):**
+Start: (00:18.00) | End: (00:21.00)
+"He would never do that to me."
+
+**CAMERA:**
+Start: (00:20.00) | End: (00:30.00)
+Slow push-in on the man holding up a signed contract.
+
+**MAN IN SUIT (Gloating):**
+Start: (00:22.00) | End: (00:27.00)
+"Then why is his signature right here?"
+
+SCENE 02
+Scene heading: EXT. BAKERY – CONTINUOUS
+Scene start: 00:30.00
+Scene end: 00:50.00
+
+Actions and dialogue:
+
+**CAMERA:**
+Start: (00:30.00) | End: (00:38.00)
+Mara bursts out into the street.
+
+**MARA (V.O.) (Steely):**
+Start: (00:31.00) | End: (00:35.00)
+"If he betrayed me, he will pay."
+
+**CAMERA:**
+Start: (00:38.00) | End: (00:50.00)
+Her partner steps out of a black car across the road.
+
+**PARTNER (Nervous):**
+Start: (00:40.00) | End: (00:43.00)
+"Mara, wait. Let me explain."
+
+**SOUND FX:**
+Start: (00:46.00) | End: (00:50.00)
+Ominous strings swell into a cliffhanger sting.
+
+--- SCRIPT END ---
